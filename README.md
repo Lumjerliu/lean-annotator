@@ -36,11 +36,44 @@ XAI_API_KEY=your-api-key-here
 **Supported providers:**
 | Provider | Env Variable | Get API Key |
 |----------|-------------|-------------|
+| OpenGauss | `OPENGAUSS_PROJECT_PATH` | https://github.com/math-inc/OpenGauss |
 | xAI Grok | `XAI_API_KEY` | https://console.x.ai/ |
 | OpenAI | `OPENAI_API_KEY` | https://platform.openai.com/ |
 | Anthropic | `ANTHROPIC_API_KEY` | https://console.anthropic.com/ |
 
 **Without API key:** The app runs in "mock" mode with pre-written templates.
+
+### Using OpenGauss (Recommended for Lean 4)
+
+[OpenGauss](https://github.com/math-inc/OpenGauss) is a specialized Lean 4 workflow orchestrator that provides higher-quality formalizations through purpose-built agents.
+
+1. **Install OpenGauss:**
+   ```bash
+   git clone https://github.com/math-inc/OpenGauss.git
+   cd OpenGauss
+   ./scripts/install.sh
+   ```
+
+2. **Create a Lean project:**
+   ```bash
+   gauss
+   /project create ~/my-lean-project
+   ```
+
+3. **Configure the annotator:**
+   ```bash
+   # In your .env file:
+   LLM_PROVIDER=opengauss
+   OPENGAUSS_PROJECT_PATH=/path/to/your/lean/project
+   ```
+
+   Or simply create a `.gauss/project.yaml` in your project directory and the annotator will auto-detect it.
+
+**OpenGauss benefits:**
+- Purpose-built for Lean 4 formalization
+- Multi-agent workflow with specialized proving strategies
+- Better integration with Mathlib
+- Project-scoped formalization context
 
 ### 3. Run the App
 ```bash

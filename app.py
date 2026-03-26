@@ -17,10 +17,12 @@ DATABASE = 'lean_annotator.db'
 def get_llm_info():
     """Get LLM provider and model info."""
     provider = os.environ.get('LLM_PROVIDER', '').lower()
-    
-    # Auto-detect provider based on available API keys
+
+    # Auto-detect provider based on available API keys and tools
     if not provider:
-        if os.environ.get('XAI_API_KEY') or os.environ.get('GROK_API_KEY'):
+        if is_opengauss_available():
+            provider = 'opengauss'
+        elif os.environ.get('XAI_API_KEY') or os.environ.get('GROK_API_KEY'):
             provider = 'grok'
         elif os.environ.get('OPENAI_API_KEY') or os.environ.get('LLM_API_KEY'):
             provider = 'openai'
@@ -28,11 +30,13 @@ def get_llm_info():
             provider = 'anthropic'
         else:
             provider = 'mock'
-    
+
     # Get model
     model = os.environ.get('LLM_MODEL', '')
     if not model:
-        if provider == 'grok':
+        if provider == 'opengauss':
+            model = 'gauss-autoformalize'
+        elif provider == 'grok':
             model = 'grok-3'
         elif provider == 'openai':
             model = 'gpt-4'
@@ -40,8 +44,49 @@ def get_llm_info():
             model = 'claude-3-opus'
         else:
             model = 'template-based'
-    
+
     return provider.upper(), model
+
+def is_opengauss_available():
+    """Check if OpenGauss (gauss CLI) is installed and configured."""
+    # Check if gauss command is available
+    try:
+        result = subprocess.run(['which', 'gauss'], capture_output=True, text=True, timeout=5)
+        if result.returncode != 0:
+            return False
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return False
+
+    # Check if a Lean project is configured for OpenGauss
+    gauss_project = os.environ.get('OPENGAUSS_PROJECT_PATH', '')
+    if gauss_project:
+        return os.path.isdir(gauss_project)
+
+    # Check for .gauss/project.yaml in current directory or parent
+    current_dir = os.getcwd()
+    while current_dir != '/':
+        gauss_config = os.path.join(current_dir, '.gauss', 'project.yaml')
+        if os.path.exists(gauss_config):
+            return True
+        current_dir = os.path.dirname(current_dir)
+
+    return False
+
+def get_opengauss_project_path():
+    """Get the OpenGauss project path."""
+    explicit_path = os.environ.get('OPENGAUSS_PROJECT_PATH', '')
+    if explicit_path and os.path.isdir(explicit_path):
+        return explicit_path
+
+    # Search for .gauss/project.yaml
+    current_dir = os.getcwd()
+    while current_dir != '/':
+        gauss_config = os.path.join(current_dir, '.gauss', 'project.yaml')
+        if os.path.exists(gauss_config):
+            return current_dir
+        current_dir = os.path.dirname(current_dir)
+
+    return None
 
 def get_db():
     conn = sqlite3.connect(DATABASE)
@@ -341,7 +386,9 @@ def formalize_problem_stream(problem_id):
     # Auto-detect provider
     provider = os.environ.get('LLM_PROVIDER', '').lower()
     if not provider:
-        if os.environ.get('XAI_API_KEY') or os.environ.get('GROK_API_KEY'):
+        if is_opengauss_available():
+            provider = 'opengauss'
+        elif os.environ.get('XAI_API_KEY') or os.environ.get('GROK_API_KEY'):
             provider = 'grok'
         elif os.environ.get('OPENAI_API_KEY') or os.environ.get('LLM_API_KEY'):
             provider = 'openai'
@@ -349,7 +396,7 @@ def formalize_problem_stream(problem_id):
             provider = 'anthropic'
         else:
             provider = 'mock'
-    
+
     if provider in ['grok', 'xai']:
         return stream_grok_formalization(problem_dict, current_code, action, problem_id)
     else:
@@ -530,10 +577,12 @@ def delete_formalization(formalization_id):
 
 def generate_lean_formalization(problem, current_code, action):
     provider = os.environ.get('LLM_PROVIDER', '').lower()
-    
-    # Auto-detect provider based on available API keys
+
+    # Auto-detect provider based on available API keys and tools
     if not provider:
-        if os.environ.get('XAI_API_KEY') or os.environ.get('GROK_API_KEY'):
+        if is_opengauss_available():
+            provider = 'opengauss'
+        elif os.environ.get('XAI_API_KEY') or os.environ.get('GROK_API_KEY'):
             provider = 'grok'
         elif os.environ.get('OPENAI_API_KEY') or os.environ.get('LLM_API_KEY'):
             provider = 'openai'
@@ -541,8 +590,10 @@ def generate_lean_formalization(problem, current_code, action):
             provider = 'anthropic'
         else:
             provider = 'mock'
-    
-    if provider == 'grok' or provider == 'xai':
+
+    if provider == 'opengauss':
+        return generate_opengauss_formalization(problem, current_code, action)
+    elif provider == 'grok' or provider == 'xai':
         return generate_grok_formalization(problem, current_code, action)
     elif provider == 'openai':
         return generate_openai_formalization(problem, current_code, action)
@@ -550,6 +601,67 @@ def generate_lean_formalization(problem, current_code, action):
         return generate_anthropic_formalization(problem, current_code, action)
     else:
         return generate_mock_formalization(problem, current_code, action)
+
+def generate_opengauss_formalization(problem, current_code, action):
+    """Generate formalization using OpenGauss (gauss CLI)."""
+    import shlex
+
+    project_path = get_opengauss_project_path()
+    if not project_path:
+        return "-- Error: No OpenGauss project found. Set OPENGAUSS_PROJECT_PATH or create .gauss/project.yaml"
+
+    title = problem['title']
+    desc = problem['description']
+    natural = problem.get('natural_language', '')
+    difficulty = problem.get('difficulty', 'medium')
+
+    # Build the prompt for OpenGauss
+    if action == 'improve' and current_code:
+        prompt = f"Improve this Lean 4 formalization for: {title}\n\nProblem: {desc}\n\nCurrent code:\n```lean\n{current_code}\n```"
+    elif action == 'fix' and current_code:
+        prompt = f"Fix errors in this Lean 4 formalization for: {title}\n\nProblem: {desc}\n\nCurrent code:\n```lean\n{current_code}\n```"
+    else:
+        prompt = f"Formalize this problem in Lean 4:\n\nTitle: {title}\nDescription: {desc}"
+        if natural:
+            prompt += f"\nNatural language: {natural}"
+        prompt += f"\nDifficulty: {difficulty}"
+
+    try:
+        # Run gauss autoformalize command
+        # The command spawns a managed backend child agent for formalization
+        cmd = ['gauss', 'autoformalize', prompt]
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 minute timeout for formalization
+            cwd=project_path
+        )
+
+        if result.returncode != 0:
+            return f"-- OpenGauss error:\n-- {result.stderr}\n\n-- stdout:\n-- {result.stdout}"
+
+        output = result.stdout.strip()
+
+        # Extract Lean code from the output if it's wrapped in markdown
+        if '```lean' in output:
+            matches = re.findall(r'```lean\n(.*?)```', output, re.DOTALL)
+            if matches:
+                output = '\n'.join(matches)
+        elif '```' in output:
+            matches = re.findall(r'```\n?(.*?)```', output, re.DOTALL)
+            if matches:
+                output = '\n'.join(matches)
+
+        return output if output else "-- Error: Empty response from OpenGauss"
+
+    except subprocess.TimeoutExpired:
+        return "-- Error: OpenGauss formalization timed out (5 min limit)"
+    except FileNotFoundError:
+        return "-- Error: 'gauss' command not found. Install OpenGauss from https://github.com/math-inc/OpenGauss"
+    except Exception as e:
+        return f"-- Error calling OpenGauss: {str(e)}"
 
 def generate_grok_formalization(problem, current_code, action):
     """Generate formalization using xAI Grok API."""
