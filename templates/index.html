@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lean Prover Annotator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Lean Prover Annotator</h1>
+            <p class="subtitle">Formalize mathematics with AI assistance</p>
+        </header>
+
+        <div class="add-problem-section">
+            <div class="top-controls">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Search problems..." autocomplete="off">
+                    <select id="difficultyFilter">
+                        <option value="all">All Difficulties</option>
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
+                <div class="import-export-buttons">
+                    <button id="showAddFormBtn" class="btn btn-primary">+ Add New Problem</button>
+                    <button id="showImportBtn" class="btn btn-secondary">Import CSV</button>
+                    <a href="/api/problems/export-csv" class="btn btn-secondary">Export CSV</a>
+                </div>
+            </div>
+            
+            <!-- Add Problem Form -->
+            <div id="addProblemForm" class="problem-form" style="display:none;">
+                <h3 id="formTitle">Add New Problem</h3>
+                <input type="hidden" id="editProblemId" value="">
+                <div class="form-row">
+                    <input type="text" id="problemTitle" placeholder="Problem title">
+                </div>
+                <div class="form-row">
+                    <textarea id="problemDescription" placeholder="Problem description"></textarea>
+                </div>
+                <div class="form-row">
+                    <input type="text" id="problemNatural" placeholder="Natural language statement (optional)">
+                </div>
+                <div class="form-row">
+                    <select id="problemDifficulty">
+                        <option value="easy">Easy</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
+                <div class="form-buttons">
+                    <button id="saveProblemBtn" class="btn btn-primary">Add Problem</button>
+                    <button id="cancelEditBtn" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+            
+            <!-- CSV Import Form -->
+            <div id="importForm" class="problem-form" style="display:none;">
+                <h3>Import Problems from CSV</h3>
+                <p class="import-info">CSV should have columns: <code>title</code>, <code>description</code>, <code>natural_language</code> (optional), <code>difficulty</code> (optional)</p>
+                <div class="form-row">
+                    <input type="file" id="csvFile" accept=".csv" class="file-input">
+                </div>
+                <div class="form-buttons">
+                    <button id="importCsvBtn" class="btn btn-primary">Import</button>
+                    <button id="cancelImportBtn" class="btn btn-secondary">Cancel</button>
+                </div>
+                <div id="importResult" class="import-result" style="display:none;"></div>
+            </div>
+        </div>
+
+        <div class="problems-grid" id="problemsGrid">
+            {% for problem in problems %}
+            <div class="problem-card" data-id="{{ problem.id }}" data-difficulty="{{ problem.difficulty }}" onclick="openProblem({{ problem.id }})">
+                <div class="card-header">
+                    <h3>{{ problem.title }}</h3>
+                    <span class="difficulty difficulty-{{ problem.difficulty }}">{{ problem.difficulty }}</span>
+                </div>
+                <p class="problem-desc">{{ problem.description[:150] }}{% if problem.description|length > 150 %}...{% endif %}</p>
+                <div class="card-footer">
+                    <span class="card-date">{{ problem.created_at }}</span>
+                    <div class="card-actions">
+                        <button class="btn btn-small btn-edit" onclick="event.stopPropagation(); editProblem({{ problem.id }})">Edit</button>
+                        <button class="btn btn-small btn-delete" onclick="event.stopPropagation(); deleteProblem({{ problem.id }})">Delete</button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <footer>
+            <p>Lean Prover Annotator | LLM: <strong>{{ llm_provider }}</strong> ({{ llm_model }})</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

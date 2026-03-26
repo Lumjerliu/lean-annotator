@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ problem.title }} - Lean Annotator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/haskell/haskell.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="/" class="back-button">← Back to Problems</a>
+            <h1>{{ problem.title }}</h1>
+            <span class="difficulty difficulty-{{ problem.difficulty }}">{{ problem.difficulty }}</span>
+        </header>
+
+        <main class="problem-detail">
+            <section class="problem-statement">
+                <h2>Problem Statement</h2>
+                <div class="statement-content">
+                    <p>{{ problem.description }}</p>
+                    {% if problem.natural_language %}
+                    <p class="natural-lang"><strong>Natural language:</strong> {{ problem.natural_language }}</p>
+                    {% endif %}
+                </div>
+            </section>
+
+            <section class="formalization-section">
+                <div class="section-header">
+                    <h2>Lean Formalization</h2>
+                    <div class="editor-actions">
+                        <button id="saveCodeBtn" class="btn btn-success" disabled>Save</button>
+                        <button id="checkCodeBtn" class="btn btn-primary">Check</button>
+                    </div>
+                </div>
+
+                <div class="ai-buttons">
+                    <button id="generateBtn" class="btn btn-ai">Generate Formalization</button>
+                    <button id="improveBtn" class="btn btn-ai">Improve Code</button>
+                    <button id="fixBtn" class="btn btn-ai">Fix Errors</button>
+                </div>
+
+                <div class="editor-container">
+                    <textarea id="leanEditor">-- Click "Generate Formalization" to start
+-- Or write your own Lean code here</textarea>
+                </div>
+                
+                <div class="keyboard-hint">
+                    <kbd>Ctrl+Enter</kbd> Generate |
+                    <kbd>Ctrl+S</kbd> Save |
+                    <kbd>Ctrl+Shift+Enter</kbd> Check
+                </div>
+                
+                <div id="editorFallback" style="display:none; background:#1a1a2e; border-radius:8px; padding:15px; margin-bottom:15px; border:1px solid #2a4a7a;">
+                    <textarea id="leanEditorFallback" style="width:100%; height:400px; background:#282a36; color:#e8e8e8; border:none; font-family:monospace; font-size:14px; resize:vertical;">-- Click "Generate Formalization" to start</textarea>
+                </div>
+
+                <div class="output-panel">
+                    <h3>Output</h3>
+                    <div id="outputContent" class="output-content">
+                        <p class="placeholder" id="outputPlaceholder">Output will appear here...</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="history-section">
+                <h2>History</h2>
+                <div id="historyList" class="history-list">
+                    {% if formalizations %}
+                        {% for f in formalizations %}
+                        <div class="history-item" data-id="{{ f.id }}">
+                            <span class="history-status">{{ f.status }}</span>
+                            <span class="history-time">{{ f.updated_at }}</span>
+                            <button class="btn btn-small" onclick="loadFormalization({{ f.id }})">Load</button>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="placeholder">Previous versions will appear here</p>
+                    {% endif %}
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>LLM Provider: <strong id="llmStatus">{{ llm_provider }}</strong> | 
+               Model: <strong id="modelName">{{ llm_model }}</strong> | 
+               Formalization: <strong id="formStatus">None</strong></p>
+        </footer>
+    </div>
+
+    <script>
+        var problemId = {{ problem.id }};
+        var problemData = {{ problem | tojson }};
+        var formalizationsData = {{ formalizations | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/problem.js') }}"></script>
+    <script>
+        // Fallback - ensure buttons work even if there are loading issues
+        window.addEventListener('load', function() {
+            console.log('Window loaded, checking buttons...');
+            
+            var genBtn = document.getElementById('generateBtn');
+            if (genBtn && !genBtn.hasAttribute('data-bound')) {
+                genBtn.setAttribute('data-bound', 'true');
+                genBtn.onclick = function() {
+                    console.log('Generate button clicked (fallback)');
+                    generateFormalization('formalize');
+                };
+            }
+            
+            var impBtn = document.getElementById('improveBtn');
+            if (impBtn && !impBtn.hasAttribute('data-bound')) {
+                impBtn.setAttribute('data-bound', 'true');
+                impBtn.onclick = function() {
+                    generateFormalization('improve');
+                };
+            }
+            
+            var fixBtn = document.getElementById('fixBtn');
+            if (fixBtn && !fixBtn.hasAttribute('data-bound')) {
+                fixBtn.setAttribute('data-bound', 'true');
+                fixBtn.onclick = function() {
+                    generateFormalization('fix');
+                };
+            }
+        });
+    </script>
+</body>
+</html>
